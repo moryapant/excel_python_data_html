@@ -7,6 +7,13 @@ from collections import defaultdict
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def parse_date(date_string):
+    try:
+        return datetime.strptime(date_string, '%m/%d/%Y')
+    except ValueError:
+        logging.error(f"Invalid date format: {date_string}")
+        return None
+
 def process_csv_file(filepath):
     try:
         with open(filepath, 'r') as csvfile:
@@ -22,7 +29,7 @@ def process_csv_file(filepath):
                 logging.debug(f"Processing row: {row}")
                 if row and len(row) > 1:
                     if row[0] == 'Time Period':
-                        date = row[1]
+                        date = parse_date(row[1])
                     elif row[0].startswith('Peak Contacts'):
                         peak_contacts = row[1]
                     elif row[0] == 'Experience Portal':
@@ -38,7 +45,7 @@ def process_csv_file(filepath):
     return None
 
 def generate_html_report(date, data, is_output=False):
-    title = "Latest Experience Portal Data" if is_output else f"Experience Portal Data - {date}"
+    title = "Latest Experience Portal Data" if is_output else f"Experience Portal Data - {date.strftime('%m/%d/%Y')}"
     html = f'''
     <!DOCTYPE html>
     <html lang="en">
@@ -86,7 +93,7 @@ def generate_index_html(data_by_date):
         <ul>
     '''
     for date, filename in sorted(data_by_date.items(), reverse=True):
-        html += f'<li><a href="{filename}">{date}</a></li>'
+        html += f'<li><a href="{filename}">{date.strftime("%m/%d/%Y")}</a></li>'
     html += '''
         </ul>
     </body>
@@ -168,7 +175,7 @@ def main():
         report_files = {}
         for date, data in data_by_date.items():
             report_html = generate_html_report(date, data)
-            report_filename = f'report_{date.replace(" ", "_")}.html'
+            report_filename = f'report_{date.strftime("%m%d%Y")}.html'
             with open(os.path.join(output_directory, report_filename), 'w') as f:
                 f.write(report_html)
             report_files[date] = report_filename
