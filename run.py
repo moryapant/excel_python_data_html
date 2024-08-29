@@ -3,40 +3,12 @@ import os
 from datetime import datetime
 import logging
 from collections import defaultdict
-import re
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def parse_date(date_string):
-    date_formats = [
-        '%B %d, %Y',  # e.g., "July 20, 2024"
-        '%B %d',      # e.g., "July 20"
-        '%m/%d/%Y',   # e.g., "07/20/2024"
-        '%Y/%m/%d',   # e.g., "2024/07/20"
-        '%d-%m-%Y',   # e.g., "20-07-2024"
-        '%Y-%m-%d',   # e.g., "2024-07-20"
-    ]
-
-    # Try to parse the date using the predefined formats
-    for fmt in date_formats:
-        try:
-            return datetime.strptime(date_string, fmt)
-        except ValueError:
-            pass
-
-    # If none of the formats work, try to extract date components
-    match = re.search(r'(\w+)\s+(\d{1,2})(?:,?\s+(\d{4}))?', date_string)
-    if match:
-        month, day, year = match.groups()
-        year = year or '2024'  # Default to 2024 if year is not provided
-        try:
-            return datetime.strptime(f"{month} {day} {year}", '%B %d %Y')
-        except ValueError:
-            pass
-
-    logging.error(f"Unable to parse date: {date_string}")
-    return None
+def get_todays_date():
+    return datetime.now().strftime("%B-%y")  # Returns format like "August-23"
 
 def process_csv_file(filepath):
     try:
@@ -48,20 +20,16 @@ def process_csv_file(filepath):
             reader = csv.reader(csvfile)
             peak_contacts = None
             portal = None
-            date = None
+            date = get_todays_date()  # Use today's date
             for row in reader:
                 logging.debug(f"Processing row: {row}")
                 if row and len(row) > 1:
-                    if row[0] == 'Time Period':
-                        parsed_date = parse_date(row[1])
-                        if parsed_date:
-                            date = parsed_date.strftime("%B-%y")
-                    elif row[0].startswith('Peak Contacts'):
+                    if row[0].startswith('Peak Contacts'):
                         peak_contacts = row[1]
                     elif row[0] == 'Experience Portal':
                         # Read the next non-empty row for the portal value
                         portal = next((r[0] for r in reader if r and r[0]), None)
-            if portal and peak_contacts and date:
+            if portal and peak_contacts:
                 logging.info(f"Processed file {filepath}: date={date}, portal={portal}, peak_contacts={peak_contacts}")
                 return date, portal, peak_contacts
             else:
@@ -178,7 +146,7 @@ def main():
     os.makedirs(output_directory, exist_ok=True)
 
     data_by_date = defaultdict(list)
-    latest_date = None
+    today_date = get_todays_date()
 
     csv_files = [f for f in os.listdir(current_directory) if f.endswith('.csv')]
     logging.info(f"Found {len(csv_files)} CSV files")
@@ -189,8 +157,6 @@ def main():
         if result:
             date, portal, peak_contacts = result
             data_by_date[date].append((portal, peak_contacts))
-            if latest_date is None or date > latest_date:
-                latest_date = date
             logging.info(f"Processed file: {filename}")
         else:
             logging.warning(f"Failed to process file: {filename}")
@@ -198,26 +164,21 @@ def main():
     if not data_by_date:
         logging.error("No data was extracted from CSV files")
     else:
-        report_files = {}
-        for date, data in data_by_date.items():
-            report_html = generate_html_report(date, data)
-            report_filename = f'report_{date.replace(" ", "_")}.html'
-            with open(os.path.join(output_directory, report_filename), 'w') as f:
-                f.write(report_html)
-            report_files[date] = report_filename
-            logging.info(f"Generated report file: {report_filename}")
+        report_html = generate_html_report(today_date, data_by_date[today_date])
+        report_filename = f'report_{today_date.replace(" ", "_")}.html'
+        with open(os.path.join(output_directory, report_filename), 'w') as f:
+            f.write(report_html)
+        logging.info(f"Generated report file: {report_filename}")
 
-        logging.info(f"Generating index.html with {len(report_files)} entries")
-        index_html = generate_index_html(report_files)
+        index_html = generate_index_html({today_date: report_filename})
         with open(os.path.join(output_directory, 'index.html'), 'w') as f:
             f.write(index_html)
         logging.info("Generated index.html")
 
-        if latest_date:
-            output_html = generate_html_report(latest_date, data_by_date[latest_date], is_output=True)
-            with open(os.path.join(output_directory, 'output.html'), 'w') as f:
-                f.write(output_html)
-            logging.info("Generated output.html with latest data")
+        output_html = generate_html_report(today_date, data_by_date[today_date], is_output=True)
+        with open(os.path.join(output_directory, 'output.html'), 'w') as f:
+            f.write(output_html)
+        logging.info("Generated output.html with today's data")
 
     css = generate_css()
     with open(os.path.join(output_directory, 'styles.css'), 'w') as f:
