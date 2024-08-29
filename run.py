@@ -8,7 +8,7 @@ from collections import defaultdict
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def get_todays_date():
-    return datetime.now().strftime("%B-%y")  # Returns format like "August-23"
+    return datetime.now().strftime("%d/%m/%y")  # Returns format like "28/08/23"
 
 def process_csv_file(filepath):
     try:
@@ -165,7 +165,7 @@ def main():
         logging.error("No data was extracted from CSV files")
     else:
         report_html = generate_html_report(today_date, data_by_date[today_date])
-        report_filename = f'report_{today_date.replace(" ", "_")}.html'
+        report_filename = f'report_{today_date.replace("/", "_")}.html'
         with open(os.path.join(output_directory, report_filename), 'w') as f:
             f.write(report_html)
         logging.info(f"Generated report file: {report_filename}")
