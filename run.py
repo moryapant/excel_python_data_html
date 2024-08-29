@@ -9,7 +9,11 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 
 def parse_date(date_string):
     try:
-        return datetime.strptime(date_string, '%m/%d/%Y')
+        # Split the string and take the first part (e.g., "JULY 20")
+        date_part = date_string.split(',')[0].strip()
+        # Parse the month and day, assume the year is 2024
+        date = datetime.strptime(date_part + " 2024", '%B %d %Y')
+        return date.strftime("%B-%y")  # Return as "MONTH-YY" format
     except ValueError:
         logging.error(f"Invalid date format: {date_string}")
         return None
