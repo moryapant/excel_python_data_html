@@ -3,20 +3,40 @@ import os
 from datetime import datetime
 import logging
 from collections import defaultdict
+import re
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def parse_date(date_string):
-    try:
-        # Split the string and take the first part (e.g., "JULY 20")
-        date_part = date_string.split(',')[0].strip()
-        # Parse the month and day, assume the year is 2024
-        date = datetime.strptime(date_part + " 2024", '%B %d %Y')
-        return date.strftime("%B-%y")  # Return as "MONTH-YY" format
-    except ValueError:
-        logging.error(f"Invalid date format: {date_string}")
-        return None
+    date_formats = [
+        '%B %d, %Y',  # e.g., "July 20, 2024"
+        '%B %d',      # e.g., "July 20"
+        '%m/%d/%Y',   # e.g., "07/20/2024"
+        '%Y/%m/%d',   # e.g., "2024/07/20"
+        '%d-%m-%Y',   # e.g., "20-07-2024"
+        '%Y-%m-%d',   # e.g., "2024-07-20"
+    ]
+
+    # Try to parse the date using the predefined formats
+    for fmt in date_formats:
+        try:
+            return datetime.strptime(date_string, fmt)
+        except ValueError:
+            pass
+
+    # If none of the formats work, try to extract date components
+    match = re.search(r'(\w+)\s+(\d{1,2})(?:,?\s+(\d{4}))?', date_string)
+    if match:
+        month, day, year = match.groups()
+        year = year or '2024'  # Default to 2024 if year is not provided
+        try:
+            return datetime.strptime(f"{month} {day} {year}", '%B %d %Y')
+        except ValueError:
+            pass
+
+    logging.error(f"Unable to parse date: {date_string}")
+    return None
 
 def process_csv_file(filepath):
     try:
@@ -33,7 +53,9 @@ def process_csv_file(filepath):
                 logging.debug(f"Processing row: {row}")
                 if row and len(row) > 1:
                     if row[0] == 'Time Period':
-                        date = parse_date(row[1])
+                        parsed_date = parse_date(row[1])
+                        if parsed_date:
+                            date = parsed_date.strftime("%B-%y")
                     elif row[0].startswith('Peak Contacts'):
                         peak_contacts = row[1]
                     elif row[0] == 'Experience Portal':
@@ -49,7 +71,7 @@ def process_csv_file(filepath):
     return None
 
 def generate_html_report(date, data, is_output=False):
-    title = "Latest Experience Portal Data" if is_output else f"Experience Portal Data - {date.strftime('%m/%d/%Y')}"
+    title = "Latest Experience Portal Data" if is_output else f"Experience Portal Data - {date}"
     html = f'''
     <!DOCTYPE html>
     <html lang="en">
@@ -97,7 +119,7 @@ def generate_index_html(data_by_date):
         <ul>
     '''
     for date, filename in sorted(data_by_date.items(), reverse=True):
-        html += f'<li><a href="{filename}">{date.strftime("%m/%d/%Y")}</a></li>'
+        html += f'<li><a href="{filename}">{date}</a></li>'
     html += '''
         </ul>
     </body>
@@ -179,7 +201,7 @@ def main():
         report_files = {}
         for date, data in data_by_date.items():
             report_html = generate_html_report(date, data)
-            report_filename = f'report_{date.strftime("%m%d%Y")}.html'
+            report_filename = f'report_{date.replace(" ", "_")}.html'
             with open(os.path.join(output_directory, report_filename), 'w') as f:
                 f.write(report_html)
             report_files[date] = report_filename
